@@ -1,0 +1,55 @@
+name: OpenShift
+
+env:
+  APP_NAME: "examplevotingapp_vote"
+  IMAGE_REGISTRY: "aroacrhackthon.azurecr.io"
+  IMAGE_TAGS: "latest"
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  openshift-ci-cd:
+    name: Build and deploy on Self-Hosted OpenShift Runners
+    runs-on: [ self-hosted, openshift, node ] 
+    environment: production
+
+    outputs:
+      ROUTE: ${{ steps.deploy-and-expose.outputs.route }}
+      SELECTOR: ${{ steps.deploy-and-expose.outputs.selector }}
+
+    steps:         
+    - name: Check out repository
+      uses: actions/checkout@v2
+
+    - name: Determine app name
+      if: env.APP_NAME == ''
+      run: |
+        echo "APP_NAME=$(basename $PWD)" | tee -a $GITHUB_ENV
+
+    - name: Determine image tags
+      if: env.IMAGE_TAGS == ''
+      run: |
+        echo "IMAGE_TAGS=latest ${GITHUB_SHA::12}" | tee -a $GITHUB_ENV
+
+    # https://github.com/redhat-actions/buildah-build#readme
+    - name: Build from Dockerfile
+      id: build-image
+      uses: redhat-actions/buildah-build@v2
+      with:
+        image: ${{ env.APP_NAME }}
+        tags: ${{ env.IMAGE_TAGS }}
+        context: ./Vote
+        containerfiles: |
+          ./Vote/Dockerfile
+
+    # https://github.com/redhat-actions/push-to-registry#readme
+    - name: Push to registry
+      id: push-image
+      uses: redhat-actions/push-to-registry@v2
+      with:
+        image: ${{ steps.build-image.outputs.image }}
+        tags: ${{ steps.build-image.outputs.tags }}
+        registry: ${{ env.IMAGE_REGISTRY }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
