@@ -33,8 +33,6 @@ jobs:
     - uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
-        environment: 'AzureStack'
-
     - run: |
         az acr list -o table        
     # https://github.com/redhat-actions/buildah-build#readme
